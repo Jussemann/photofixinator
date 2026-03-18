@@ -3,7 +3,7 @@ Simple script to load an image, set its capture date, and save it.
 
 This script demonstrates basic image loading and EXIF date modification.
 """
-
+print("Juuulius")
 from datetime import datetime
 from pathlib import Path
 import sys
