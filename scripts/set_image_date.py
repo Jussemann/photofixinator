@@ -19,11 +19,11 @@ def main():
     Load a test image, set its date, and save it.
     """
     # Example usage: modify this path to point to your test image
-    image_path = Path(__file__).parent.parent / "data" / "test_image.jpg"
+    image_path = Path(__file__).parent.parent / "test_image" / "sample.jpg"
 
     if not image_path.exists():
         print(f"Error: Test image not found at {image_path}")
-        print("Please provide a JPEG image in the data folder.")
+        print("Please provide a JPEG image in the test_image folder.")
         return
 
     try:

@@ -48,6 +48,9 @@ coverage.xml
 *.cover
 *.py.cover
 .hypothesis/
+
+# IDE / Editor files
+.vscode/
 .pytest_cache/
 cover/
 
@@ -205,3 +208,22 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Image files
+*.JPG
+*.jpg
+*.jpeg
+*.JPEG
+*.png
+*.PNG
+*.gif
+*.GIF
+*.bmp
+*.BMP
+*.tiff
+*.TIFF
+*.webp
+*.WEBP
+
+# Test folder
+test_image/
