@@ -10,7 +10,7 @@ The long-term goal is to create a simple, maintainable tool that allows browsing
 There are three driving factors for this project:
 1. I do analog photography as a hobby and have a problem with all photos having the same data stamp as the day they are scanned. I would like to set this date myself. 
 2. My family have a lot of old pictures that could be interesting to scan, but those images are most interesting with context. If we can scan them, update their metadata and maby even tag the content we can add the context. 
-3. I want to have fun.
+3. I want to have fun. so fun
 ---
 
 ## Current Status 🚧
@@ -80,7 +80,7 @@ At this stage, there is no single application entry point.
 
 Instead:
 - Run individual Python scripts to test specific functionality
-- Scripts may change, be replaced, or removed over time.
+- Scripts may change, be replaced, or removed over time
 
 ---
 
