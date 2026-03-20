@@ -80,7 +80,7 @@ At this stage, there is no single application entry point.
 
 Instead:
 - Run individual Python scripts to test specific functionality
-- Scripts may change, be replaced, or removed over time
+- Scripts may change, be replaced, or removed over time.
 
 ---
 
