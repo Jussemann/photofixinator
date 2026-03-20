@@ -35,7 +35,7 @@ The current work consists of small, focused scripts to understand:
 - Working with a local SQLite database
 - Creating basic UI components with `PySide6`
 
-These experiments will later form the foundation of the full application.
+These experiments will later form the foundation of the full application
 
 ---
 
