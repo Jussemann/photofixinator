@@ -1,8 +1,8 @@
-# Photo Fixinator
+# MetaCruncher
 
 ## Overview
 My project for fixing scanned photos by myself
-**Photo Fixinator** is a personal project aimed at building a local desktop application for organizing and annotating images with metadata. 
+**MetaCruncher** is a personal project aimed at building a local desktop application for organizing and annotating images with metadata. 
 
 The long-term goal is to create a simple, maintainable tool that allows browsing images, editing metadata, and storing additional information in a local database.
 
