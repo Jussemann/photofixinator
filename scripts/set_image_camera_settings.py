@@ -35,7 +35,7 @@ from metadata.exif_handler import (
 # ============================================================================
 
 # Date taken (format: year, month, day, hour, minute, second)
-DATE_TAKEN = datetime(2025, 3, 10, 14, 30, 0)
+DATE_TAKEN = datetime(2025, 3, 10, 14, 30, 1)
 
 # Camera manufacturer
 CAMERA_MAKER = "Minolta"
