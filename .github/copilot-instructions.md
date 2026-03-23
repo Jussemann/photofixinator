@@ -1,8 +1,8 @@
-# Copilot Instructions for Photo Fixinator
+# Copilot Instructions for MetaCruncher
 
-## Preliminary Context (Remove Later)
+## Preliminary Context (Will be removed later)
 
-**Goal:** The ultimate goal is to build **Photo Fixinator**, a full-featured local desktop application for managing and annotating images with metadata.  
+**Goal:** The ultimate goal is to build **MetaCruncher**, a full-featured local desktop application for managing and annotating images with metadata.  
 
 **Current Phase:** For now, focus on creating small, simple Python scripts to test and experiment with individual functionalities such as:  
 - Loading images from a folder.  
@@ -18,7 +18,7 @@
 ---
 
 ## Project Overview
-**Photo Fixinator** is a local desktop application for annotating and managing a collection of images.  
+**MetaCruncher** is a local desktop application for annotating and managing a collection of images.  
 Its primary purpose is to allow a user to load images from a folder, view them one at a time, and store associated metadata (date, name, description) locally.
 
 - **Language:** Python
