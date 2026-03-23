@@ -169,6 +169,10 @@ def set_exif_value(
         OSError: If the file cannot be read or written.
         ValueError: If the ifd_name or value_type is invalid.
     """
+    # Early exit if value is None (indicates no update needed)
+    if value is None:
+        return
+
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Image file not found: {file_path}")
