@@ -2,10 +2,12 @@
 Script to set comprehensive camera and image metadata on an image.
 
 This script demonstrates setting multiple EXIF fields including date taken,
-camera maker, camera model, F-stop, exposure time, ISO speed, and focal length.
+camera maker, camera model, F-stop, exposure time, ISO speed, focal length,
+and GPS location.
 """
 
 from datetime import datetime
+import importlib
 from pathlib import Path
 import sys
 
@@ -21,6 +23,7 @@ from metadata.exif_handler import (
     set_exposure_time,
     set_iso_speed,
     set_focal_length,
+    set_gps_location,
     get_exif_date,
     get_camera_maker,
     get_camera_model,
@@ -28,6 +31,7 @@ from metadata.exif_handler import (
     get_exposure_time,
     get_iso_speed,
     get_focal_length,
+    get_gps_location,
 )
 
 # ============================================================================
@@ -59,11 +63,23 @@ ISO_SPEED = 400
 # Focal length in millimeters
 FOCAL_LENGTH = 35.0
 
+# GPS location preset selection. Use one of the names in data/gps_locations.yaml,
+# or set to "custom" to use the coordinates below.
+GPS_LOCATION_CHOICE = "Mo i Rana"
+
+# Custom GPS location used when GPS_LOCATION_CHOICE is set to "custom"
+CUSTOM_GPS_LOCATION_NAME = "Custom location"
+CUSTOM_GPS_LATITUDE = 66.0
+CUSTOM_GPS_LONGITUDE = 14.0
+
 # ============================================================================
 # SINGLE FILE MODE
 # ============================================================================
 # Path to the image file to modify (used when BULK_SWITCH is False)
 IMAGE_PATH = Path(__file__).parent.parent / "test_image" / "sample.jpg"
+
+# Path to the YAML file containing preset GPS locations
+GPS_LOCATIONS_FILE = Path(__file__).parent.parent / "data" / "gps_locations.yaml"
 
 # ============================================================================
 # BULK MODE
@@ -79,12 +95,113 @@ IMAGE_FORMATS = [".jpg", ".jpeg", ".JPG", ".JPEG"]
 # ============================================================================
 
 
-def apply_metadata_to_image(image_path: str) -> bool:
+def load_gps_locations(config_path: Path) -> dict[str, dict[str, float]]:
+    """
+    Load preset GPS locations from a YAML file.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        Mapping of location names to latitude/longitude pairs.
+
+    Raises:
+        FileNotFoundError: If the YAML file does not exist.
+        ValueError: If the YAML structure is invalid.
+    """
+    if not config_path.exists():
+        raise FileNotFoundError(f"GPS locations file not found: {config_path}")
+
+    yaml_module = importlib.import_module("ruamel.yaml")
+    yaml = yaml_module.YAML(typ="safe")
+    with config_path.open("r", encoding="utf-8") as file_handle:
+        data = yaml.load(file_handle) or {}
+
+    locations = data.get("locations")
+    if not isinstance(locations, dict):
+        raise ValueError("GPS locations YAML must contain a 'locations' mapping.")
+
+    validated_locations: dict[str, dict[str, float]] = {}
+    for name, coordinates in locations.items():
+        if not isinstance(coordinates, dict):
+            raise ValueError(f"GPS location '{name}' must be a mapping.")
+
+        latitude = coordinates.get("latitude")
+        longitude = coordinates.get("longitude")
+        if latitude is None or longitude is None:
+            raise ValueError(
+                f"GPS location '{name}' must define both latitude and longitude."
+            )
+
+        validated_locations[str(name)] = {
+            "latitude": float(latitude),
+            "longitude": float(longitude),
+        }
+
+    return validated_locations
+
+
+def get_selected_gps_location() -> tuple[str, float, float]:
+    """
+    Resolve the selected GPS location from presets or custom coordinates.
+
+    Returns:
+        Tuple containing location name, latitude, and longitude.
+
+    Raises:
+        ValueError: If the configured preset does not exist.
+    """
+    if GPS_LOCATION_CHOICE.lower() == "custom":
+        return (
+            CUSTOM_GPS_LOCATION_NAME,
+            float(CUSTOM_GPS_LATITUDE),
+            float(CUSTOM_GPS_LONGITUDE),
+        )
+
+    locations = load_gps_locations(GPS_LOCATIONS_FILE)
+    if GPS_LOCATION_CHOICE not in locations:
+        available_locations = ", ".join(sorted(locations))
+        raise ValueError(
+            f"Unknown GPS location '{GPS_LOCATION_CHOICE}'. "
+            f"Available presets: {available_locations}, custom"
+        )
+
+    selected_location = locations[GPS_LOCATION_CHOICE]
+    return (
+        GPS_LOCATION_CHOICE,
+        selected_location["latitude"],
+        selected_location["longitude"],
+    )
+
+
+def format_gps_coordinates(latitude: float, longitude: float) -> str:
+    """
+    Format latitude and longitude for readable console output.
+
+    Args:
+        latitude: Latitude in decimal degrees.
+        longitude: Longitude in decimal degrees.
+
+    Returns:
+        Formatted coordinate string.
+    """
+    return f"{latitude:.6f}, {longitude:.6f}"
+
+
+def apply_metadata_to_image(
+    image_path: str,
+    gps_location_name: str,
+    gps_latitude: float,
+    gps_longitude: float,
+) -> bool:
     """
     Apply all configured metadata to a single image file.
 
     Args:
         image_path: Path to the image file to update.
+        gps_location_name: Display name of the GPS location.
+        gps_latitude: Latitude in decimal degrees.
+        gps_longitude: Longitude in decimal degrees.
 
     Returns:
         True if successful, False if an error occurred.
@@ -102,8 +219,12 @@ def apply_metadata_to_image(image_path: str) -> bool:
         set_exposure_time(image_path, EXPOSURE_TIME)
         set_iso_speed(image_path, ISO_SPEED)
         set_focal_length(image_path, FOCAL_LENGTH)
+        set_gps_location(image_path, gps_latitude, gps_longitude)
 
-        print(f"  ✓ Metadata updated successfully")
+        print(
+            "  ✓ Metadata updated successfully "
+            f"({gps_location_name}: {format_gps_coordinates(gps_latitude, gps_longitude)})"
+        )
         return True
 
     except Exception as e:
@@ -126,12 +247,19 @@ def display_metadata(image_path: str) -> None:
     print(f"Exposure Time: {get_exposure_time(image_path) or 'Not set'}")
     print(f"ISO Speed: {get_iso_speed(image_path) or 'Not set'}")
     print(f"Focal Length: {get_focal_length(image_path) or 'Not set'}")
+    gps_location = get_gps_location(image_path)
+    if gps_location is None:
+        print("GPS Location: Not set")
+    else:
+        print(f"GPS Location: {format_gps_coordinates(*gps_location)}")
 
 
 def process_single_image() -> None:
     """
     Process a single image file with metadata updates.
     """
+    gps_location_name, gps_latitude, gps_longitude = get_selected_gps_location()
+
     if not IMAGE_PATH.exists():
         print(f"Error: Test image not found at {IMAGE_PATH}")
         print("Please provide a JPEG image in the test_image folder.")
@@ -155,9 +283,18 @@ def process_single_image() -> None:
     print(f"F-stop: {FSTOP}")
     print(f"Exposure Time: {EXPOSURE_TIME}")
     print(f"ISO Speed: {ISO_SPEED}")
-    print(f"Focal Length: {FOCAL_LENGTH}mm\n")
+    print(f"Focal Length: {FOCAL_LENGTH}mm")
+    print(
+        f"GPS Location: {gps_location_name} "
+        f"({format_gps_coordinates(gps_latitude, gps_longitude)})\n"
+    )
 
-    if apply_metadata_to_image(str(IMAGE_PATH)):
+    if apply_metadata_to_image(
+        str(IMAGE_PATH),
+        gps_location_name,
+        gps_latitude,
+        gps_longitude,
+    ):
         # Verify the changes
         print("\n=== Updated EXIF Metadata ===")
         display_metadata(str(IMAGE_PATH))
@@ -167,6 +304,8 @@ def process_bulk_images() -> None:
     """
     Process all image files in a folder with metadata updates.
     """
+    gps_location_name, gps_latitude, gps_longitude = get_selected_gps_location()
+
     if not BULK_FOLDER.exists():
         print(f"Error: Bulk folder not found at {BULK_FOLDER}")
         print("Please create the folder or update BULK_FOLDER path.")
@@ -199,13 +338,22 @@ def process_bulk_images() -> None:
     print(f"F-stop: {FSTOP}")
     print(f"Exposure Time: {EXPOSURE_TIME}")
     print(f"ISO Speed: {ISO_SPEED}")
-    print(f"Focal Length: {FOCAL_LENGTH}mm\n")
+    print(f"Focal Length: {FOCAL_LENGTH}mm")
+    print(
+        f"GPS Location: {gps_location_name} "
+        f"({format_gps_coordinates(gps_latitude, gps_longitude)})\n"
+    )
 
     successful = 0
     failed = 0
 
     for image_file in image_files:
-        if apply_metadata_to_image(str(image_file)):
+        if apply_metadata_to_image(
+            str(image_file),
+            gps_location_name,
+            gps_latitude,
+            gps_longitude,
+        ):
             successful += 1
         else:
             failed += 1

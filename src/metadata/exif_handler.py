@@ -2,7 +2,7 @@
 EXIF metadata handling for images.
 
 This module provides functions to read, modify, and save EXIF metadata,
-particularly for managing image capture dates and camera settings.
+particularly for managing image capture dates, camera settings, and GPS data.
 """
 
 from datetime import datetime
@@ -12,6 +12,78 @@ from typing import Any, Optional, Union
 
 import piexif
 from PIL import Image
+
+
+GPSCoordinate = tuple[float, float]
+
+
+def _load_exif_dict(file_path: str) -> dict[str, Any]:
+    """
+    Load EXIF data from an image file or create a new EXIF structure.
+
+    Args:
+        file_path: Path to the image file.
+
+    Returns:
+        EXIF dictionary compatible with piexif.
+    """
+    try:
+        return piexif.load(file_path)
+    except piexif.InvalidImageDataError:
+        return {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}}
+
+
+def _save_exif_dict(file_path: str, exif_dict: dict[str, Any]) -> None:
+    """
+    Save an EXIF dictionary back to an image file.
+
+    Args:
+        file_path: Path to the image file.
+        exif_dict: EXIF dictionary to persist.
+    """
+    exif_bytes = piexif.dump(exif_dict)
+    image = Image.open(file_path)
+    image.save(file_path, exif=exif_bytes)
+
+
+def _decimal_to_dms_rational(coordinate: float) -> tuple[tuple[int, int], ...]:
+    """
+    Convert decimal degrees to EXIF-friendly DMS rational tuples.
+
+    Args:
+        coordinate: Latitude or longitude in decimal degrees.
+
+    Returns:
+        Degrees, minutes, and seconds as EXIF rational tuples.
+    """
+    total_seconds = round(abs(coordinate) * 3600 * 10000)
+    degrees, remainder = divmod(total_seconds, 3600 * 10000)
+    minutes, seconds = divmod(remainder, 60 * 10000)
+    return ((degrees, 1), (minutes, 1), (seconds, 10000))
+
+
+def _dms_rational_to_decimal(
+    coordinate: tuple[tuple[int, int], ...],
+    reference: bytes,
+) -> float:
+    """
+    Convert EXIF DMS rational tuples into decimal degrees.
+
+    Args:
+        coordinate: Degrees, minutes, and seconds as EXIF rational tuples.
+        reference: EXIF reference byte indicating hemisphere.
+
+    Returns:
+        Coordinate in decimal degrees.
+    """
+    degrees = coordinate[0][0] / coordinate[0][1]
+    minutes = coordinate[1][0] / coordinate[1][1]
+    seconds = coordinate[2][0] / coordinate[2][1]
+    decimal_value = degrees + (minutes / 60) + (seconds / 3600)
+
+    if reference in (b"S", b"W"):
+        return -decimal_value
+    return decimal_value
 
 
 def load_image(file_path: str) -> Image.Image:
@@ -65,11 +137,7 @@ def set_exif_date(file_path: str, date: datetime) -> None:
 
     try:
         # Read existing EXIF data or create new if none exists
-        try:
-            exif_dict = piexif.load(file_path)
-        except piexif.InvalidImageDataError:
-            # No EXIF data exists, create a new one
-            exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}}
+        exif_dict = _load_exif_dict(file_path)
 
         # Update DateTime (0th IFD)
         exif_dict["0th"][piexif.ImageIFD.DateTime] = exif_date_str.encode()
@@ -80,12 +148,7 @@ def set_exif_date(file_path: str, date: datetime) -> None:
         # Update DateTimeDigitized (Exif IFD)
         exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized] = exif_date_str.encode()
 
-        # Dump EXIF data and save
-        exif_bytes = piexif.dump(exif_dict)
-
-        # Load image and save with new EXIF
-        image = Image.open(file_path)
-        image.save(file_path, exif=exif_bytes)
+        _save_exif_dict(file_path, exif_dict)
 
     except Exception as e:
         raise OSError(f"Failed to set EXIF date: {e}")
@@ -182,10 +245,7 @@ def set_exif_value(
 
     try:
         # Read existing EXIF data or create new if none exists
-        try:
-            exif_dict = piexif.load(file_path)
-        except piexif.InvalidImageDataError:
-            exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}}
+        exif_dict = _load_exif_dict(file_path)
 
         # Encode value based on type
         if value_type == "ascii":
@@ -209,10 +269,7 @@ def set_exif_value(
         # Set the value
         exif_dict[ifd_name][tag] = encoded_value
 
-        # Dump EXIF data and save
-        exif_bytes = piexif.dump(exif_dict)
-        image = Image.open(file_path)
-        image.save(file_path, exif=exif_bytes)
+        _save_exif_dict(file_path, exif_dict)
 
     except Exception as e:
         raise OSError(f"Failed to set EXIF value: {e}")
@@ -396,6 +453,78 @@ def get_exposure_time(file_path: str) -> Optional[float]:
         return None
     except Exception as e:
         raise OSError(f"Failed to read exposure time: {e}")
+
+
+def set_gps_location(file_path: str, latitude: float, longitude: float) -> None:
+    """
+    Set GPS latitude and longitude in EXIF metadata.
+
+    Args:
+        file_path: Path to the image file to update.
+        latitude: Latitude in decimal degrees.
+        longitude: Longitude in decimal degrees.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        OSError: If the file cannot be read or written.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image file not found: {file_path}")
+
+    try:
+        exif_dict = _load_exif_dict(file_path)
+        gps_ifd = exif_dict.setdefault("GPS", {})
+
+        gps_ifd[piexif.GPSIFD.GPSVersionID] = (2, 3, 0, 0)
+        gps_ifd[piexif.GPSIFD.GPSLatitudeRef] = b"N" if latitude >= 0 else b"S"
+        gps_ifd[piexif.GPSIFD.GPSLatitude] = _decimal_to_dms_rational(latitude)
+        gps_ifd[piexif.GPSIFD.GPSLongitudeRef] = b"E" if longitude >= 0 else b"W"
+        gps_ifd[piexif.GPSIFD.GPSLongitude] = _decimal_to_dms_rational(longitude)
+        gps_ifd[piexif.GPSIFD.GPSMapDatum] = b"WGS-84"
+
+        _save_exif_dict(file_path, exif_dict)
+    except Exception as e:
+        raise OSError(f"Failed to set GPS location: {e}")
+
+
+def get_gps_location(file_path: str) -> Optional[GPSCoordinate]:
+    """
+    Retrieve GPS latitude and longitude from EXIF metadata.
+
+    Args:
+        file_path: Path to the image file.
+
+    Returns:
+        Tuple of latitude and longitude in decimal degrees if found, None otherwise.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image file not found: {file_path}")
+
+    try:
+        exif_dict = piexif.load(file_path)
+        gps_ifd = exif_dict.get("GPS", {})
+
+        latitude = gps_ifd.get(piexif.GPSIFD.GPSLatitude)
+        latitude_ref = gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef)
+        longitude = gps_ifd.get(piexif.GPSIFD.GPSLongitude)
+        longitude_ref = gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef)
+
+        if not all((latitude, latitude_ref, longitude, longitude_ref)):
+            return None
+
+        return (
+            _dms_rational_to_decimal(latitude, latitude_ref),
+            _dms_rational_to_decimal(longitude, longitude_ref),
+        )
+    except piexif.InvalidImageDataError:
+        return None
+    except Exception as e:
+        raise OSError(f"Failed to read GPS location: {e}")
 
 
 def set_iso_speed(file_path: str, iso: int) -> None:
